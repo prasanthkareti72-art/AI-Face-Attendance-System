@@ -1,0 +1,587 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Automated Attendance System for Rural Schools</title>
+    
+    <!-- Meta Descriptions for SEO -->
+    <meta name="description" content="AI-based offline-capable face recognition attendance management mobile web application tailored for rural schools. Reduce manual proxy attendance easily.">
+    <meta name="theme-color" content="#10b981">
+    
+    <!-- Fonts -->
+    <link rel="stylesheet" href="css/style.css">
+    
+    <!-- Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" integrity="sha512-iecdLmaskl7CVkqkXNQ/ZH/XLlvWZOJyj7Yy7tcenmpD1ypASozpmT/E0iPtmFIB46ZmdtAc9eNBvH0H/ZpiBw==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+    
+    <!-- Face-API.js library with tfjs built-in -->
+    <script src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.15/dist/face-api.js"></script>
+
+    <!-- Firebase Compat SDKs (Dynamically active in cloud mode) -->
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-storage-compat.js"></script>
+
+    <!-- jsPDF and AutoTable plugin for PDF export -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.29/jspdf.plugin.autotable.min.js"></script>
+</head>
+<body>
+
+    <!-- Global Loading Overlay -->
+    <div id="loading-overlay">
+        <div class="spinner" id="loading-spinner"></div>
+        <p id="loading-text">Initializing AI models...</p>
+    </div>
+
+    <!-- Main Shell container -->
+    <div id="app-container">
+
+        <!-- App Top Header -->
+        <header class="app-header" id="app-header" style="display: none;">
+            <div class="app-brand">
+                <i class="fa-solid fa-graduation-cap"></i>
+                <span>Rural Attendance AI</span>
+            </div>
+            <div class="header-actions">
+                <button class="theme-toggle-btn" id="theme-toggle-btn" aria-label="Toggle Dark/Light Mode">
+                    <i class="fa-solid fa-moon"></i>
+                </button>
+                <button class="logout-btn" id="logout-btn" aria-label="Logout">
+                    <i class="fa-solid fa-right-from-bracket"></i>
+                </button>
+            </div>
+        </header>
+
+        <!-- ==========================================
+           1. Authentication Pages
+           ========================================== -->
+        
+        <!-- Login Page -->
+        <main class="page-view" id="view-login">
+            <div class="auth-header">
+                <i class="fa-solid fa-school-flag"></i>
+                <h1 class="auth-logo-text">Teacher Sign In</h1>
+                <p style="font-size: 13px; color: var(--text-muted);">Rural School Face Attendance System</p>
+            </div>
+            <form id="login-form">
+                <div class="form-group">
+                    <label class="form-label" for="login-email">Email Address</label>
+                    <input class="form-input" type="email" id="login-email" required placeholder="name@school.edu">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="login-password">Password</label>
+                    <input class="form-input" type="password" id="login-password" required placeholder="••••••••">
+                </div>
+                <div class="auth-remember">
+                    <label>
+                        <input type="checkbox" id="login-remember" checked> Remember Me
+                    </label>
+                    <a href="#" class="auth-forgot" id="forgot-password-link">Forgot Password?</a>
+                </div>
+                <button class="btn btn-primary" type="submit">Sign In</button>
+            </form>
+            <p class="auth-switch-text">
+                Don't have an account? <a href="#" id="switch-to-signup">Sign Up</a>
+            </p>
+        </main>
+
+        <!-- Sign Up Page -->
+        <main class="page-view" id="view-signup">
+            <div class="auth-header">
+                <i class="fa-solid fa-user-plus"></i>
+                <h1 class="auth-logo-text">Teacher Sign Up</h1>
+                <p style="font-size: 13px; color: var(--text-muted);">Register your school account</p>
+            </div>
+            <form id="signup-form">
+                <div class="form-group">
+                    <label class="form-label" for="signup-name">Full Name</label>
+                    <input class="form-input" type="text" id="signup-name" required placeholder="Teacher Full Name">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="signup-employee-id">Employee ID</label>
+                    <input class="form-input" type="text" id="signup-employee-id" required placeholder="EMP-12345">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="signup-email">Email Address</label>
+                    <input class="form-input" type="email" id="signup-email" required placeholder="teacher@school.edu">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="signup-mobile">Mobile Number</label>
+                    <input class="form-input" type="tel" id="signup-mobile" required placeholder="9876543210">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="signup-school">School Name</label>
+                    <input class="form-input" type="text" id="signup-school" required placeholder="Govt. Rural Secondary School">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="signup-password">Password</label>
+                    <input class="form-input" type="password" id="signup-password" required placeholder="Min 6 characters">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="signup-confirm-password">Confirm Password</label>
+                    <input class="form-input" type="password" id="signup-confirm-password" required placeholder="Re-enter password">
+                </div>
+                <button class="btn btn-primary" type="submit">Create Account</button>
+            </form>
+            <p class="auth-switch-text">
+                Already registered? <a href="#" id="switch-to-login">Log In</a>
+            </p>
+        </main>
+
+
+        <!-- ==========================================
+           2. Dashboard View
+           ========================================== -->
+        <main class="page-view" id="view-dashboard">
+            <h1 class="page-title" id="dashboard-school-name">Govt Rural School</h1>
+            <p class="page-subtitle" id="dashboard-teacher-name">Welcome Back, Instructor</p>
+
+            <section class="dashboard-summary">
+                <div class="summary-card students">
+                    <div class="summary-icon"><i class="fa-solid fa-users"></i></div>
+                    <div class="summary-info">
+                        <h4>Students</h4>
+                        <p id="dash-count-students">0</p>
+                    </div>
+                </div>
+                <div class="summary-card subjects">
+                    <div class="summary-icon"><i class="fa-solid fa-book"></i></div>
+                    <div class="summary-info">
+                        <h4>Subjects</h4>
+                        <p id="dash-count-subjects">0</p>
+                    </div>
+                </div>
+                <div class="summary-card present">
+                    <div class="summary-icon"><i class="fa-solid fa-circle-check"></i></div>
+                    <div class="summary-info">
+                        <h4>Present Today</h4>
+                        <p id="dash-count-present">0</p>
+                    </div>
+                </div>
+                <div class="summary-card absent">
+                    <div class="summary-icon"><i class="fa-solid fa-circle-xmark"></i></div>
+                    <div class="summary-info">
+                        <h4>Absent Today</h4>
+                        <p id="dash-count-absent">0</p>
+                    </div>
+                </div>
+            </section>
+
+            <section class="progress-container">
+                <div class="progress-circle">
+                    <svg>
+                        <circle class="bg" cx="35" cy="35" r="30"></circle>
+                        <circle class="bar" id="dash-progress-bar" cx="35" cy="35" r="30"></circle>
+                    </svg>
+                    <div class="progress-text" id="dash-progress-text">0%</div>
+                </div>
+                <div class="progress-info">
+                    <h4>Today's Attendance Rate</h4>
+                    <p>Daily stats based on all scanned classes</p>
+                </div>
+            </section>
+
+            <h3 style="margin-bottom: 12px; font-size: 16px;">Recent Scan Activity</h3>
+            <section class="activity-list" id="dashboard-recent-activity">
+                <div class="card" style="text-align: center; color: var(--text-muted); font-size: 13px;">
+                    No attendance taken today yet.
+                </div>
+            </section>
+
+            <button class="btn btn-primary" id="btn-quick-scan" style="margin-top: 20px;">
+                <i class="fa-solid fa-camera"></i> Start AI Attendance Scan
+            </button>
+        </main>
+
+
+        <!-- ==========================================
+           3. Management View (Students & Subjects Sub-tabs)
+           ========================================== -->
+        <main class="page-view" id="view-management">
+            <h1 class="page-title">School Database</h1>
+            <p class="page-subtitle">Manage class rosters and class subjects</p>
+
+            <!-- Custom Horizontal Sub-Tabs -->
+            <div class="filter-badge-list" style="margin-bottom: 16px;">
+                <button class="filter-badge active" id="subtab-btn-students">Students Roster</button>
+                <button class="filter-badge" id="subtab-btn-subjects">School Subjects</button>
+            </div>
+
+            <!-- Subtab Panel: Students -->
+            <section id="panel-students-roster">
+                <div class="search-container">
+                    <i class="fa-solid fa-magnifying-glass"></i>
+                    <input type="text" class="search-input" id="search-students-input" placeholder="Search student name or roll no...">
+                </div>
+
+                <div id="students-list-container">
+                    <!-- Roster inserted here dynamically -->
+                </div>
+
+                <button class="fab" id="btn-open-student-modal" aria-label="Add Student">
+                    <i class="fa-solid fa-plus"></i>
+                </button>
+            </section>
+
+            <!-- Subtab Panel: Subjects -->
+            <section id="panel-subjects-roster" style="display: none;">
+                <div id="subjects-list-container" class="subject-grid">
+                    <!-- Subjects inserted here dynamically -->
+                </div>
+                
+                <button class="btn btn-outline" id="btn-open-subject-modal" style="margin-top: 16px;">
+                    <i class="fa-solid fa-plus"></i> Add New Subject
+                </button>
+            </section>
+        </main>
+
+
+        <!-- ==========================================
+           4. AI Scanner Attendance Capture
+           ========================================== -->
+        <main class="page-view" id="view-scanner">
+            <h1 class="page-title">AI Attendance Capture</h1>
+            <p class="page-subtitle">Auto-mark student status via classroom face matching</p>
+
+            <div class="form-group">
+                <label class="form-label" for="scanner-select-subject">Select Subject</label>
+                <select class="form-input" id="scanner-select-subject">
+                    <option value="">-- Choose Subject --</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label" for="scanner-select-class">Class & Section</label>
+                <select class="form-input" id="scanner-select-class">
+                    <option value="6-A">Grade 6 - Section A</option>
+                    <option value="7-A">Grade 7 - Section A</option>
+                    <option value="8-A">Grade 8 - Section A</option>
+                    <option value="9-A">Grade 9 - Section A</option>
+                    <option value="10-A">Grade 10 - Section A</option>
+                </select>
+            </div>
+
+            <!-- Active Camera Box -->
+            <div class="attendance-scanner-area" id="attendance-scanner-area">
+                <video id="scanner-video-element" class="scanner-video" autoplay playsinline muted></video>
+                <canvas id="scanner-overlay-canvas" class="scanner-canvas"></canvas>
+                <div class="scanning-laser-line" id="scanner-laser"></div>
+            </div>
+
+            <!-- Control buttons -->
+            <div class="camera-controls">
+                <button class="camera-flip-btn" id="scanner-btn-flip" title="Flip Camera">
+                    <i class="fa-solid fa-arrows-rotate"></i>
+                </button>
+                <button class="capture-btn" id="scanner-btn-capture" title="Freeze Capture">
+                    <i class="fa-solid fa-camera"></i>
+                </button>
+                <button class="camera-flip-btn" id="scanner-btn-reset" title="Restart Stream" style="display: none;">
+                    <i class="fa-solid fa-rotate-right"></i>
+                </button>
+            </div>
+
+            <!-- Scanner Results Info -->
+            <div class="live-results-summary" style="margin-top: 20px;">
+                <h4 id="scanner-stat-detected">Detected: 0 faces</h4>
+                <h4 id="scanner-stat-matched" style="color: var(--primary);">Matched: 0 Students</h4>
+            </div>
+
+            <!-- Match Roster Preview -->
+            <h3 style="margin-bottom: 10px; font-size: 14px;">Identified Roll Call</h3>
+            <div class="card attendance-results-list" id="scanner-results-container">
+                <div style="text-align: center; color: var(--text-muted); font-size: 13px; padding: 10px;">
+                    Turn on camera to analyze faces.
+                </div>
+            </div>
+
+            <button class="btn btn-primary" id="btn-save-attendance" disabled>
+                <i class="fa-solid fa-cloud-arrow-up"></i> Submit & Save Attendance
+            </button>
+        </main>
+
+
+        <!-- ==========================================
+           5. Logs & PDF Reports Page
+           ========================================== -->
+        <main class="page-view" id="view-reports">
+            <h1 class="page-title">Attendance Reports</h1>
+            <p class="page-subtitle">Filter attendance data and export PDF summary sheet</p>
+
+            <div class="card" style="margin-bottom: 16px;">
+                <div class="form-group">
+                    <label class="form-label" for="report-filter-type">Report Structure</label>
+                    <select class="form-input" id="report-filter-type">
+                        <option value="daily">Daily Report (PDF)</option>
+                        <option value="monthly">Monthly Sheet (PDF)</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="report-filter-subject">Subject</label>
+                    <select class="form-input" id="report-filter-subject">
+                        <!-- Populated dynamically -->
+                    </select>
+                </div>
+
+                <div class="form-group" id="report-date-group">
+                    <label class="form-label" for="report-filter-date">Date Selection</label>
+                    <input class="form-input" type="date" id="report-filter-date">
+                </div>
+
+                <div class="form-group" id="report-month-group" style="display: none;">
+                    <label class="form-label" for="report-filter-month">Month Selection</label>
+                    <input class="form-input" type="month" id="report-filter-month">
+                </div>
+
+                <button class="btn btn-primary" id="btn-download-pdf">
+                    <i class="fa-solid fa-file-pdf"></i> Export PDF Report
+                </button>
+            </div>
+
+            <!-- Live logs viewer -->
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                <h3 style="font-size: 16px;">Roster Audit Log</h3>
+                <span class="badge badge-success" id="logs-count-records">0 records</span>
+            </div>
+
+            <div class="card" style="padding: 0; overflow: hidden; border-radius: var(--radius-md);">
+                <div class="attendance-table-header">
+                    <div>Student Name</div>
+                    <div>Roll</div>
+                    <div>Status</div>
+                </div>
+                <div id="logs-table-container" style="max-height: 300px; overflow-y: auto;">
+                    <!-- Logs dynamically appended here -->
+                    <div style="text-align: center; color: var(--text-muted); font-size: 13px; padding: 20px;">
+                        No logs for the selected criteria.
+                    </div>
+                </div>
+            </div>
+        </main>
+
+
+        <!-- ==========================================
+           6. Application Settings View
+           ========================================== -->
+        <main class="page-view" id="view-settings">
+            <h1 class="page-title">Settings</h1>
+            <p class="page-subtitle">System modes and database parameters</p>
+
+            <div class="card">
+                <h3 class="settings-section-title" style="margin-top: 0;">Database Synchronizer</h3>
+                <div class="firebase-status-box">
+                    <div class="firebase-status-indicator" id="firebase-indicator"></div>
+                    <div>
+                        <h4 style="font-size: 14px;" id="firebase-status-text">Local Offline Engine</h4>
+                        <p style="font-size: 11px; color: var(--text-muted);" id="firebase-status-desc">All student & face details saved in IndexedDB.</p>
+                    </div>
+                </div>
+                
+                <p style="font-size: 12px; color: var(--text-secondary); margin-bottom: 16px;">
+                    Provide Firebase API keys below to enable secure cloud backups, student sync across devices, and secure Firebase Storage for face imagery.
+                </p>
+
+                <form id="firebase-config-form">
+                    <div class="form-group">
+                        <label class="form-label">API Key</label>
+                        <input class="form-input" type="password" id="fb-api-key" placeholder="AIzaSy...">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Auth Domain</label>
+                        <input class="form-input" type="text" id="fb-auth-domain" placeholder="project-id.firebaseapp.com">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Project ID</label>
+                        <input class="form-input" type="text" id="fb-project-id" placeholder="project-id">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Storage Bucket</label>
+                        <input class="form-input" type="text" id="fb-storage-bucket" placeholder="project-id.appspot.com">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Messaging Sender ID</label>
+                        <input class="form-input" type="text" id="fb-sender-id" placeholder="1234567890">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">App ID</label>
+                        <input class="form-input" type="text" id="fb-app-id" placeholder="1:12345:web:abcd">
+                    </div>
+                    <div class="form-row">
+                        <button type="submit" class="btn btn-primary">Connect Cloud</button>
+                        <button type="button" class="btn btn-secondary" id="btn-clear-firebase">Reset Local</button>
+                    </div>
+                </form>
+            </div>
+
+            <div class="card">
+                <h3 class="settings-section-title" style="margin-top: 0;">Developer & Teacher Profile</h3>
+                <div style="font-size: 13px; display: grid; gap: 8px;">
+                    <div><strong>Teacher Name:</strong> <span id="profile-teacher-name">Jane Doe</span></div>
+                    <div><strong>Employee ID:</strong> <span id="profile-employee-id">EMP-1004</span></div>
+                    <div><strong>School:</strong> <span id="profile-school-name">Govt High School</span></div>
+                    <div><strong>Mobile:</strong> <span id="profile-mobile-number">9876543210</span></div>
+                </div>
+            </div>
+
+            <div class="card" style="border-color: var(--danger); background-color: rgba(239, 68, 68, 0.03);">
+                <h3 class="settings-section-title" style="margin-top: 0; color: var(--danger);">Danger Zone</h3>
+                <p style="font-size: 11px; color: var(--text-secondary); margin-bottom: 12px;">This deletes the local database containing teachers, subjects, registered faces, and attendance logs. This action cannot be undone.</p>
+                <button class="btn btn-danger" id="btn-reset-app-db">
+                    <i class="fa-solid fa-trash-can"></i> Factory Reset Database
+                </button>
+            </div>
+        </main>
+
+
+        <!-- ==========================================
+           7. Modals / overlays
+           ========================================== -->
+
+        <!-- Student Registration Modal Form -->
+        <div id="student-modal" class="page-view" style="display: none; position: fixed; top: 0; left: 50%; transform: translateX(-50%); width: 100%; max-width: 480px; height: 100%; background-color: var(--bg-app); z-index: 200; overflow-y: auto; padding: 20px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                <h2 id="student-modal-title">Register Student</h2>
+                <button class="action-btn" id="btn-close-student-modal"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+
+            <form id="student-register-form">
+                <input type="hidden" id="student-form-id">
+                
+                <div class="form-group">
+                    <label class="form-label" for="std-name">Student Full Name</label>
+                    <input class="form-input" type="text" id="std-name" required placeholder="John Smith">
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label" for="std-roll">Roll Number</label>
+                        <input class="form-input" type="text" id="std-roll" required placeholder="01">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="std-class">Class Grade</label>
+                        <select class="form-input" id="std-class">
+                            <option value="6">6</option>
+                            <option value="7">7</option>
+                            <option value="8">8</option>
+                            <option value="9">9</option>
+                            <option value="10">10</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="std-section">Section</label>
+                        <select class="form-input" id="std-section">
+                            <option value="A">A</option>
+                            <option value="B">B</option>
+                            <option value="C">C</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="std-parent-mobile">Parent Mobile Number</label>
+                    <input class="form-input" type="tel" id="std-parent-mobile" required placeholder="9876543210">
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="std-email">Parent Email (Optional)</label>
+                    <input class="form-input" type="email" id="std-email" placeholder="parent@home.com">
+                </div>
+
+                <!-- Capture Face Section -->
+                <div class="form-group">
+                    <label class="form-label">Register Face Templates (Minimum 1 Required)</label>
+                    <p style="font-size: 11px; color: var(--text-muted); margin-bottom: 8px;">Ensure the face is well-lit and aligned in the guidelines box below.</p>
+                    
+                    <div class="camera-wrapper" id="register-camera-wrapper">
+                        <video id="register-video-element" class="camera-stream" autoplay playsinline muted></video>
+                        <div class="face-guide-oval"></div>
+                    </div>
+
+                    <div class="camera-controls">
+                        <button type="button" class="camera-flip-btn" id="reg-btn-flip" title="Flip Camera">
+                            <i class="fa-solid fa-arrows-rotate"></i>
+                        </button>
+                        <button type="button" class="capture-btn" id="reg-btn-capture" title="Capture Face Template">
+                            <i class="fa-solid fa-camera"></i>
+                        </button>
+                        <button type="button" class="camera-flip-btn" id="reg-btn-toggle-camera" title="Toggle Camera Active">
+                            <i class="fa-solid fa-video-slash"></i>
+                        </button>
+                    </div>
+
+                    <!-- Thumbnails list of captured descriptors -->
+                    <div class="registered-faces-container" id="reg-thumbnails-list">
+                        <!-- Capture icons added dynamically -->
+                    </div>
+                </div>
+
+                <button class="btn btn-primary" type="submit" id="btn-save-student" style="margin-top: 10px;">
+                    Save Registered Student
+                </button>
+            </form>
+        </div>
+
+        <!-- Add Subject Modal Form -->
+        <div id="subject-modal" class="page-view" style="display: none; position: fixed; top: 0; left: 50%; transform: translateX(-50%); width: 100%; max-width: 480px; height: 100%; background-color: var(--bg-app); z-index: 200; overflow-y: auto; padding: 20px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+                <h2 id="subject-modal-title">Add Subject</h2>
+                <button class="action-btn" id="btn-close-subject-modal"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+
+            <form id="subject-register-form">
+                <div class="form-group">
+                    <label class="form-label" for="subj-name">Subject Name</label>
+                    <input class="form-input" type="text" id="subj-name" required placeholder="e.g. Mathematics">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="subj-code">Subject Code</label>
+                    <input class="form-input" type="text" id="subj-code" required placeholder="e.g. MATH101">
+                </div>
+                <button class="btn btn-primary" type="submit">Save Subject</button>
+            </form>
+        </div>
+
+
+        <!-- Bottom Navigation Menu (Hidden on Auth views) -->
+        <nav class="bottom-nav" id="app-bottom-nav" style="display: none;">
+            <button class="nav-item active" id="nav-dashboard" aria-label="Dashboard">
+                <i class="fa-solid fa-house"></i>
+                <span>Dashboard</span>
+            </button>
+            <button class="nav-item" id="nav-scanner" aria-label="AI Camera">
+                <i class="fa-solid fa-camera"></i>
+                <span>AI Capture</span>
+            </button>
+            <button class="nav-item" id="nav-management" aria-label="Roster DB">
+                <i class="fa-solid fa-address-book"></i>
+                <span>Database</span>
+            </button>
+            <button class="nav-item" id="nav-reports" aria-label="Reports">
+                <i class="fa-solid fa-file-invoice"></i>
+                <span>Reports</span>
+            </button>
+            <button class="nav-item" id="nav-settings" aria-label="Settings">
+                <i class="fa-solid fa-gear"></i>
+                <span>Settings</span>
+            </button>
+        </nav>
+
+        <!-- Global Toast Notification popups -->
+        <div id="toast-notification" class="success">
+            <i class="fa-solid fa-circle-check" id="toast-icon"></i>
+            <span id="toast-message">Record saved successfully!</span>
+        </div>
+
+    </div>
+
+    <!-- Core App modules scripts loading -->
+    <script src="js/db.js"></script>
+    <script src="js/ai.js"></script>
+    <script src="js/reports.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>
