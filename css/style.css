@@ -940,6 +940,7 @@ body.dark-theme .bottom-nav {
     left: 0;
     width: 100%;
     height: 100%;
+    object-fit: cover;
 }
 
 .scanning-laser-line {

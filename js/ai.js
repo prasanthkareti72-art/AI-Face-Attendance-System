@@ -46,32 +46,79 @@ class AIService {
     async startCamera(videoElement, facingMode = 'user') {
         this.stopCamera();
 
-        const constraints = {
-            video: {
-                facingMode: facingMode,
-                width: { ideal: 1280 },
-                height: { ideal: 720 }
+        // 1. Check for secure context and mediaDevices availability (critical for mobile phones)
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            if (window.isSecureContext === false) {
+                throw new Error("Camera access requires a secure connection (HTTPS) or localhost. Please check your URL and ensure you are using HTTPS.");
+            } else {
+                throw new Error("Camera access API (getUserMedia) is not supported by your browser.");
+            }
+        }
+
+        // 2. Define a list of fallback constraints to try sequentially
+        const constraintsList = [
+            // Attempt 1: Requested facingMode with standard 640x480 resolution (highly compatible on mobile front/back)
+            {
+                video: {
+                    facingMode: { ideal: facingMode },
+                    width: { ideal: 640 },
+                    height: { ideal: 480 }
+                },
+                audio: false
             },
-            audio: false
-        };
+            // Attempt 2: Requested facingMode with higher 1280x720 resolution
+            {
+                video: {
+                    facingMode: { ideal: facingMode },
+                    width: { ideal: 1280 },
+                    height: { ideal: 720 }
+                },
+                audio: false
+            },
+            // Attempt 3: Requested facingMode only (no resolution constraints)
+            {
+                video: {
+                    facingMode: { ideal: facingMode }
+                },
+                audio: false
+            },
+            // Attempt 4: Fallback to basic video stream (some older devices/browsers)
+            {
+                video: true,
+                audio: false
+            }
+        ];
+
+        let lastError = null;
+        for (const constraints of constraintsList) {
+            try {
+                this.cameraStream = await navigator.mediaDevices.getUserMedia(constraints);
+                console.log("Successfully acquired camera stream with constraints:", constraints);
+                break;
+            } catch (error) {
+                console.warn("Failed to acquire camera with constraints:", constraints, error);
+                lastError = error;
+            }
+        }
+
+        if (!this.cameraStream) {
+            throw new Error("Unable to access classroom camera. Please check your camera permissions in your browser settings.");
+        }
 
         try {
-            this.cameraStream = await navigator.mediaDevices.getUserMedia(constraints);
             videoElement.srcObject = this.cameraStream;
+            
+            // Programmatically force mobile elements to allow inline autoplay without external controls
+            videoElement.setAttribute('playsinline', 'true');
+            videoElement.setAttribute('muted', 'true');
+            videoElement.playsInline = true;
+            videoElement.muted = true;
+
             await videoElement.play();
             return true;
-        } catch (error) {
-            console.error("Camera access failed:", error);
-            // Fallback to simpler constraints
-            try {
-                this.cameraStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
-                videoElement.srcObject = this.cameraStream;
-                await videoElement.play();
-                return true;
-            } catch (err2) {
-                console.error("Fallback camera access also failed:", err2);
-                throw new Error("Unable to access classroom camera. Please verify permissions.");
-            }
+        } catch (playError) {
+            console.error("Camera stream play error:", playError);
+            throw new Error("Camera stream active, but video element failed to start. Try tapping the screen to resume.");
         }
     }
 
